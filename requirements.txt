@@ -1,0 +1,2 @@
+scixtracer >= 0.0.1
+zarr >= 2.18.2
