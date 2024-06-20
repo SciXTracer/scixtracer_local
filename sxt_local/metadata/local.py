@@ -65,7 +65,7 @@ class SxMetadataLocal(SxMetadata):
         :param uri: Unique identifier of the data,
         :param content: Metadata to write
         """
-        filename = str(Path(str(self.__root) + uri).resolve())
+        filename = str(Path(str(self.__root) + uri.value).resolve())
         with open(filename, "w", encoding='utf-8') as json_file:
             json.dump(content, json_file)
 
@@ -75,6 +75,15 @@ class SxMetadataLocal(SxMetadata):
         :param uri: Unique identifier of the data,
         :return: the read content
         """
-        filename = str(Path(str(self.__root) + uri).resolve())
+        filename = str(Path(str(self.__root) + uri.value).resolve())
         with open(filename, "r", encoding='utf-8') as json_file:
             return json.load(json_file)
+
+    def delete(self, uri: URI):
+        """Delete a data
+
+        :param uri: Unique identifier of the data,
+        """
+        filename = Path(str(Path(str(self.__root) + uri.value).resolve()))
+        if filename.is_file():
+            filename.unlink()

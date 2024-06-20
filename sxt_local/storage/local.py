@@ -6,9 +6,12 @@ import numpy as np
 import pandas as pd
 import zarr
 
+import shutil
+
 from scixtracer.models import URI
 from scixtracer.models import TensorRegion
 from scixtracer.models import Dataset
+from scixtracer.models import StorageTypes
 from scixtracer.storage import SxStorage
 
 
@@ -36,7 +39,6 @@ class SxStorageLocal(SxStorage):
         with open(dataset_path / "data" / "label.json",
                   "w", encoding='utf-8') as json_file:
             json.dump({}, json_file)
-
 
     @staticmethod
     def __make_tensor_uri(root: Path):
@@ -132,7 +134,8 @@ class SxStorageLocal(SxStorage):
         :param dataset: Destination dataset,
         :param table: Data table to write
         """
-        filename = self.__make_table_uri(self.__root / dataset.uri.value / "data" / "table")
+        filename = self.__make_table_uri(
+            self.__root / dataset.uri.value / "data" / "table")
         table.to_csv(filename)
         table_uri = URI(value=str(filename).replace(str(self.__root), ""))
         return table_uri
@@ -146,7 +149,7 @@ class SxStorageLocal(SxStorage):
         filename = str(Path(str(self.__root) + str(uri.value)).resolve())
         table.to_csv(filename)
 
-    def read_table(self, uri: URI,) -> pd.DataFrame:
+    def read_table(self, uri: URI, ) -> pd.DataFrame:
         """Read a table from the dataset storage
 
         :param uri: Unique identifier of the data,
@@ -256,3 +259,34 @@ class SxStorageLocal(SxStorage):
         with open(filename, "r", encoding='utf-8') as json_file:
             data = json.load(json_file)
             return data[str(uuid)]
+
+    def delete(self, storage_type: StorageTypes, uri: URI):
+        """Delete a data
+
+        :param storage_type: Data storage type
+        :param uri: Unique identifier of the data,
+        """
+        if storage_type == StorageTypes.ARRAY \
+                or storage_type == StorageTypes.TABLE:
+            filename = str(Path(str(self.__root) + str(uri.value)).resolve())
+            if Path(filename).is_dir():
+                shutil.rmtree(filename)
+            elif Path(filename).is_file():
+                Path(filename).unlink()
+        else:
+            self.__remove_item(uri)
+
+    def __remove_item(self, uri: URI):
+        """Remove an item from a json file
+
+        :param uri: Unique identifier of the file and item
+        """
+        filename, uuid = uri.value.rsplit('.', 1)
+        filename = str(Path(str(self.__root) + filename).resolve())
+        with open(filename, "r", encoding='utf-8') as json_file:
+            data = json.load(json_file)
+
+        data.pop(str(uuid), None)
+
+        with open(filename, "w", encoding='utf-8') as json_file:
+            json.dump(data, json_file)

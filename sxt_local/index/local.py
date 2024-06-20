@@ -16,14 +16,14 @@ from .queries import insert_location
 from .queries import insert_location_annotation
 from .queries import insert_data_annotation
 from .queries import insert_data
-from .queries import query_locations
-from .queries import query_data_annotations
-from .queries import query_locations_annotations
+from .queries import query_location
+from .queries import query_data_annotation
+from .queries import query_locations_annotation
 from .queries import query_data_with_annotations
-from .queries import query_data_with_locations
 from .queries import query_view_locations
 from .queries import query_view_data
 from .queries import query_data_tuples
+from .queries import query_delete
 
 
 class SxIndexLocal(SxIndex):
@@ -200,39 +200,33 @@ class SxIndexLocal(SxIndex):
             insert_data_annotation(conn, uri.value, key, value)
         return DataInfo(location=data_location,
                         storage_type=storage_type,
+                        metadata_uri=metadata_uri,
                         uri=uri)
 
-    def query_data(self,
-                   dataset: Dataset, *,
-                   annotations: dict[str, any] = None,
-                   locations: list[Location] = None
-                   ) -> list[DataInfo]:
+    def query_data_single(self,
+                          dataset: Dataset,
+                          annotations: dict[str, any] = None
+                         ) -> list[DataInfo] | list[list[DataInfo]]:
         """Retrieve data from a dataset
 
         :param dataset: Dataset to query,
         :param annotations: Query data that have the annotations,
-        :param locations: Data at these locations
         """
         conn = self.__get_connection(dataset.uri)
-        if annotations is not None and locations is None:
-            data = query_data_with_annotations(conn, annotations)
-        elif locations is not None and annotations is None:
-            data = query_data_with_locations(conn, locations)
-        else:
-            raise ValueError('query_data cannot combine annotation and '
-                             'location query')
+        data = query_data_with_annotations(conn, annotations)
         out_data = []
         for dat in data:
             out_data.append(DataInfo(uri=URI(value=dat[1]),
                                      storage_type=dat[2],
+                                     metadata_uri=URI(value=dat[3]),
                                      location=Location(uuid=dat[0],
                                                        dataset=dataset)))
         return out_data
 
-    def query_data_tuples(self,
-                          dataset: Dataset,
-                          annotations: list[dict[str: any]]
-                          ) -> list[list[DataInfo, ...]]:
+    def query_data_loc_set(self,
+                           dataset: Dataset,
+                           annotations: list[dict[str: any]]
+                           ) -> list[list[DataInfo]]:
         """Retrieve tuples of data from the same locations using annotations
 
         :param dataset: Dataset to query,
@@ -243,24 +237,25 @@ class SxIndexLocal(SxIndex):
         data = query_data_tuples(conn, annotations)
         data_out = []
         for _, row in data.iterrows():
-            print('row=', row)
             raw_info = []
             suffix = ""
             for i in range(len(annotations)):
                 if i > 0:
                     suffix = f"_{i}"
-                raw_info.append(DataInfo(uri=URI(value=row['uri'+suffix]),
-                                         storage_type=row['type'+suffix],
-                                         location=Location(
-                                             uuid=row['location_id'],
-                                             dataset=dataset)))
+                raw_info.append(
+                    DataInfo(uri=URI(value=row['uri'+suffix]),
+                             storage_type=row['type'+suffix],
+                             metadata_uri=URI(value=row[
+                                 'metadata_uri'+suffix]),
+                             location=Location(uuid=row['location_id'],
+                                               dataset=dataset)))
             data_out.append(raw_info)
         return data_out
 
-    def query_data_sets(self,
-                        dataset: Dataset,
-                        annotations: list[dict[str: any]]
-                        ) -> list[list[DataInfo]]:
+    def query_data_group_set(self,
+                             dataset: Dataset,
+                             annotations: list[dict[str: any]]
+                             ) -> list[list[DataInfo]]:
         """Retrieve sets of data that share the same type and annotations
 
         :param dataset: Dataset to query,
@@ -269,7 +264,7 @@ class SxIndexLocal(SxIndex):
         """
         out_data = []
         for ann in annotations:
-            out_data.append(self.query_data(dataset, annotations=ann))
+            out_data.append(self.query_data_single(dataset, annotations=ann))
         return out_data
 
     def query_location(self,
@@ -283,29 +278,30 @@ class SxIndexLocal(SxIndex):
         :return: Locations that correspond to the query
         """
         conn = self.__get_connection(dataset.uri)
-        loc_s = query_locations(conn, annotations)
+        loc_s = query_location(conn, annotations)
         locations = []
         for loc in loc_s:
             locations.append(Location(uuid=loc[0], dataset=dataset))
         return locations
 
-    def data_annotations(self, dataset: Dataset) -> dict[str, list[any]]:
+    def query_data_annotation(self, dataset: Dataset) -> dict[str, list[any]]:
         """Get all the data annotations in the datasets with their values
 
         :param dataset: Dataset to query,
         :return: Available annotations with their values
         """
         conn = self.__get_connection(dataset.uri)
-        return query_data_annotations(conn)
+        return query_data_annotation(conn)
 
-    def location_annotations(self, dataset: Dataset) -> dict[str, list[any]]:
+    def query_location_annotation(self, dataset: Dataset
+                                  ) -> dict[str, list[any]]:
         """Get all the location annotations in the datasets with their values
 
         :param dataset: Dataset to be queried,
         :return: Available locations with their values
         """
         conn = self.__get_connection(dataset.uri)
-        return query_locations_annotations(conn)
+        return query_locations_annotation(conn)
 
     def view_locations(self, dataset: Dataset) -> pd.DataFrame:
         """Create a table to visualize the dataset locations structure
@@ -333,3 +329,11 @@ class SxIndexLocal(SxIndex):
             loc_ids = [loc.id for loc in locations]
         results = query_view_data(conn, loc_ids)
         return results
+
+    def delete(self, data_info: DataInfo):
+        """Delete a data
+
+        :param data_info: Info of the data to delete
+        """
+        conn = self.__get_connection(data_info.location.dataset.uri)
+        query_delete(conn, data_info.uri.value)

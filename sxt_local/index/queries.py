@@ -177,6 +177,8 @@ def query_data_with_locations(conn: Connection,
                               location_ids: list[int]):
     """Query data at a given locations
 
+    DEPRECATED: Should be removed?
+
     :param conn: Connection to the database,
     :param location_ids: UUIDs of the location,
     """
@@ -189,7 +191,7 @@ def query_data_with_locations(conn: Connection,
 
 
 def __query_data_with_annotations_both(conn: Connection,
-                                annotations: dict[str, any]):
+                                       annotations: dict[str, any]):
     conditions = query_annotations_conditions(annotations)
 
     sql = f"""WITH location_count AS (
@@ -200,14 +202,14 @@ def __query_data_with_annotations_both(conn: Connection,
              ),
              data_count AS (
                  SELECT data_annotation.data_id, 
-                        data.location_id, 
+                        data.location_id,
                         COUNT(1) as data_num
                  FROM data_annotation
                  INNER JOIN data ON data.id = data_annotation.data_id
                  WHERE ({conditions})
                  GROUP BY data_annotation.data_id
              )
-             SELECT location_id, uri, storage_type.name as type
+             SELECT location_id, uri, storage_type.name as type, metadata_uri
              FROM data 
              INNER JOIN storage_type ON storage_type.id = data.type_id
              WHERE data.id IN (
@@ -232,7 +234,10 @@ def __query_data_with_annotations_data(conn: Connection,
                  WHERE ({conditions})
                  GROUP BY data_id
              )
-             SELECT location_id, uri, storage_type.name as type
+             SELECT location_id, 
+                    uri, 
+                    storage_type.name as type, 
+                    metadata_uri
                  FROM data 
                  INNER JOIN storage_type ON storage_type.id = data.type_id
                  WHERE data.id IN (
@@ -253,7 +258,7 @@ def __query_data_with_annotations_loc(conn: Connection,
                  WHERE ({conditions})
                  GROUP BY location_id
              )
-             SELECT location_id, uri, storage_type.name as type
+             SELECT location_id, uri, storage_type.name as type, metadata_uri
                  FROM data 
                  INNER JOIN storage_type ON storage_type.id = data.type_id
                  WHERE data.location_id IN (
@@ -272,7 +277,6 @@ def query_data_with_annotations(conn: Connection,
     :param conn: Connection to the database,
     :param annotations: Annotations of data,
     """
-    print('annotations=', annotations)
     anns = ",".join([f"'{value}'" for value in annotations.keys()])
     sql = f"""SELECT la.id
               FROM location_annotation AS la
@@ -315,9 +319,9 @@ def query_annotations_conditions(annotations: dict[str, any]) -> str:
     return sql_conditions
 
 
-def query_locations(conn: Connection,
-                    annotations: dict[str, any]
-                    ) -> list[tuple[int]]:
+def query_location(conn: Connection,
+                   annotations: dict[str, any]
+                   ) -> list[tuple[int]]:
     """Query locations that have given annotations
 
     :param conn: Connection to the database,
@@ -339,7 +343,7 @@ def query_locations(conn: Connection,
     return response
 
 
-def query_data_annotations(conn: Connection) -> dict[str, list[any]]:
+def query_data_annotation(conn: Connection) -> dict[str, list[any]]:
     """Query all the annotations used for the data annotation
 
      :param conn: Connection to the database,
@@ -365,17 +369,17 @@ def query_data_tuples(conn: Connection, annotations: list[dict[str: any]]):
     out_data = []
     for ann in annotations:
         out_data.append(pd.DataFrame(query_data_with_annotations(conn, ann),
-                                     columns=["location_id", "uri", "type"]))
+                                     columns=["location_id", "uri", "type",
+                                              "metadata_uri"]))
     dfo = out_data[0]
     for i, df_ in enumerate(out_data):
         if i > 0:
             dfo = dfo.merge(df_, left_on='location_id', right_on='location_id',
                             suffixes=('', f'_{i}'))
-    print('dfo=', dfo)
     return dfo
 
 
-def query_locations_annotations(conn: Connection) -> dict[str, list[any]]:
+def query_locations_annotation(conn: Connection) -> dict[str, list[any]]:
     """Query the location annotations keys and values
 
     :param conn: Connection to the database,
@@ -480,7 +484,7 @@ def query_view_data(conn: Connection,
 
     :param conn: Connection to the database,
     :param locations: Locations to filter (empty for all locations),
-    :return: ta dataframe with the view
+    :return: DataTable with the view
     """
     # location filters
     loc_filter = ""
@@ -502,3 +506,18 @@ def query_view_data(conn: Connection,
     df_out = df_.merge(df_loc_ann)
     df_out = df_out.merge(df_data_ann)
     return df_out
+
+
+def query_delete(conn: Connection, uri: str):
+    """Delete a data entry
+
+    :param conn: Connection to the database,
+    :param uri: The URI of the data to delete
+    """
+    cur = conn.cursor()
+    sql = """DELETE FROM data_annotation 
+             WHERE data_id = (SELECT id FROM data WHERE uri=?1)"""
+    cur.execute(sql, [uri])
+    sql = """DELETE FROM data WHERE uri=?1"""
+    cur.execute(sql, [uri])
+    conn.commit()
