@@ -45,7 +45,7 @@ CREATE TABLE data (                -- A table to list data
   location_id INTEGER NOT NULL,    -- location this refers to
   type_id  INTEGER NOT NULL,       -- data type this refers to
   analysis_id INTEGER,             -- data analysis this refers to
-  doc_uri TEXT,                    -- metadata doc file
+  metadata_uri TEXT,               -- metadata doc file
   uri TEXT NOT NULL,               -- file uri in the storage
   FOREIGN KEY (location_id) REFERENCES location(id) ON DELETE CASCADE ON UPDATE CASCADE,
   FOREIGN KEY (type_id) REFERENCES storage_type(id) ON DELETE CASCADE ON UPDATE CASCADE,

@@ -23,6 +23,7 @@ from .queries import query_data_with_annotations
 from .queries import query_data_with_locations
 from .queries import query_view_locations
 from .queries import query_view_data
+from .queries import query_data_tuples
 
 
 class SxIndexLocal(SxIndex):
@@ -51,7 +52,30 @@ class SxIndexLocal(SxIndex):
 
         :return: The info of available dataset in the workspace
         """
-        raise NotImplementedError()
+        sub_dirs = [x.name for x in self.__workspace.iterdir() if x.is_dir()]
+        return pd.DataFrame(sub_dirs, columns=["uri"])
+
+    def set_description(self, dataset: Dataset, metadata: dict[str, any]):
+        """Write metadata to a dataset
+
+        :param dataset: Information of the dataset,
+        :param metadata: Metadata to set
+        """
+        filename = Path(self.__workspace) / dataset.uri.value
+        filename = filename / "description.json"
+        with open(str(filename), "w", encoding='utf-8') as json_file:
+            json.dump(metadata, json_file)
+
+    def get_description(self, dataset: Dataset) -> dict[str, any]:
+        """Read the metadata of a dataset
+
+        :param dataset: Information of the dataset,
+        :return: The dataset metadata
+        """
+        filename = Path(self.__workspace) / dataset.uri.value
+        filename = filename / "description.json"
+        with open(str(filename), "r", encoding='utf-8') as json_file:
+            return json.load(json_file)
 
     def __get_connection(self, uri: URI) -> Connection:
         """Get the connection to the dataset index
@@ -146,7 +170,8 @@ class SxIndexLocal(SxIndex):
                     location: Dataset | Location,
                     uri: URI,
                     storage_type: str,
-                    annotations: dict[str, any] = None
+                    annotations: dict[str, any] = None,
+                    metadata_uri: URI = None
                     ) -> DataInfo:
         """Create new data to a location
 
@@ -154,6 +179,7 @@ class SxIndexLocal(SxIndex):
         :param uri: URI of the data,
         :param storage_type: Format of the data,
         :param annotations: Annotations of the data with key value pairs,
+        :param metadata_uri: The URI of the metadata,
         :return: The data information
         """
         if isinstance(location, Dataset):
@@ -165,7 +191,11 @@ class SxIndexLocal(SxIndex):
             location_id = location.uuid
             data_location = location
 
-        insert_data(conn, location_id, uri.value, storage_type)
+        metadata_str = ""
+        if metadata_uri is not None:
+            metadata_str = metadata_uri.value
+
+        insert_data(conn, location_id, uri.value, storage_type, metadata_str)
         for key, value in annotations.items():
             insert_data_annotation(conn, uri.value, key, value)
         return DataInfo(location=data_location,
@@ -197,6 +227,49 @@ class SxIndexLocal(SxIndex):
                                      storage_type=dat[2],
                                      location=Location(uuid=dat[0],
                                                        dataset=dataset)))
+        return out_data
+
+    def query_data_tuples(self,
+                          dataset: Dataset,
+                          annotations: list[dict[str: any]]
+                          ) -> list[list[DataInfo, ...]]:
+        """Retrieve tuples of data from the same locations using annotations
+
+        :param dataset: Dataset to query,
+        :param annotations: Query data that have the annotations,
+        :return: List of data tuples matching the conditions
+        """
+        conn = self.__get_connection(dataset.uri)
+        data = query_data_tuples(conn, annotations)
+        data_out = []
+        for _, row in data.iterrows():
+            print('row=', row)
+            raw_info = []
+            suffix = ""
+            for i in range(len(annotations)):
+                if i > 0:
+                    suffix = f"_{i}"
+                raw_info.append(DataInfo(uri=URI(value=row['uri'+suffix]),
+                                         storage_type=row['type'+suffix],
+                                         location=Location(
+                                             uuid=row['location_id'],
+                                             dataset=dataset)))
+            data_out.append(raw_info)
+        return data_out
+
+    def query_data_sets(self,
+                        dataset: Dataset,
+                        annotations: list[dict[str: any]]
+                        ) -> list[list[DataInfo]]:
+        """Retrieve sets of data that share the same type and annotations
+
+        :param dataset: Dataset to query,
+        :param annotations: Query data that have the annotations,
+        :return: List of data tuples matching the conditions
+        """
+        out_data = []
+        for ann in annotations:
+            out_data.append(self.query_data(dataset, annotations=ann))
         return out_data
 
     def query_location(self,

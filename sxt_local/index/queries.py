@@ -108,7 +108,6 @@ def insert_location_annotation(conn: Connection,
     :param value: Annotation value
     """
     key_id = insert_annotation_key(conn, key)
-    print('annotation key=', key_id)
     sql = """INSERT INTO location_annotation (location_id, key_id, value)
              VALUES (?1, ?2, ?3)
           """
@@ -152,22 +151,24 @@ def storage_type_id(conn: Connection, storage_type: str) -> int:
 def insert_data(conn: Connection,
                 location_id: int,
                 uri: str,
-                storage_type: str):
+                storage_type: str,
+                metadata_uri: str):
     """Insert a new data entry
 
     :param conn: Connection to the database,
     :param location_id: UUID of the location,
     :param uri: Annotation key,
     :param storage_type: Storage format,
+    :param metadata_uri: The URI of the metadata
     """
     storage_id = storage_type_id(conn, storage_type)
     if storage_id is None:
         raise ValueError(f'Storage type {storage_type} not recognized')
-    sql = """INSERT INTO data (location_id, type_id, uri)
-             VALUES (?1, ?2, ?3)
+    sql = """INSERT INTO data (location_id, type_id, uri, metadata_uri)
+             VALUES (?1, ?2, ?3, ?4)
           """
     cur = conn.cursor()
-    cur.execute(sql, [location_id, storage_id, uri])
+    cur.execute(sql, [location_id, storage_id, uri, metadata_uri])
     conn.commit()
     return cur.lastrowid
 
@@ -271,6 +272,7 @@ def query_data_with_annotations(conn: Connection,
     :param conn: Connection to the database,
     :param annotations: Annotations of data,
     """
+    print('annotations=', annotations)
     anns = ",".join([f"'{value}'" for value in annotations.keys()])
     sql = f"""SELECT la.id
               FROM location_annotation AS la
@@ -352,6 +354,25 @@ def query_data_annotations(conn: Connection) -> dict[str, list[any]]:
     for data in values:
         out[data[0]] = data[1].split(',')
     return out
+
+
+def query_data_tuples(conn: Connection, annotations: list[dict[str: any]]):
+    """Query tuples of data using annotations
+
+    :param conn: Connection to the database,
+    :param annotations: List of annotations to query
+    """
+    out_data = []
+    for ann in annotations:
+        out_data.append(pd.DataFrame(query_data_with_annotations(conn, ann),
+                                     columns=["location_id", "uri", "type"]))
+    dfo = out_data[0]
+    for i, df_ in enumerate(out_data):
+        if i > 0:
+            dfo = dfo.merge(df_, left_on='location_id', right_on='location_id',
+                            suffixes=('', f'_{i}'))
+    print('dfo=', dfo)
+    return dfo
 
 
 def query_locations_annotations(conn: Connection) -> dict[str, list[any]]:
@@ -457,10 +478,10 @@ def query_view_data(conn: Connection,
                     ) -> pd.DataFrame:
     """Query a visualization table of all the data at given locations
 
-     :param conn: Connection to the database,
-     :param locations: Locations to filter (empty for all locations),
-     :return: ta dataframe with the view
-     """
+    :param conn: Connection to the database,
+    :param locations: Locations to filter (empty for all locations),
+    :return: ta dataframe with the view
+    """
     # location filters
     loc_filter = ""
     loc_filter2 = ""

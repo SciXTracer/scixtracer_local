@@ -30,6 +30,13 @@ class SxStorageLocal(SxStorage):
         dataset_path.mkdir(exist_ok=True)
         Path(dataset_path / "data" / "array").mkdir(parents=True)
         Path(dataset_path / "data" / "table").mkdir(parents=True)
+        with open(dataset_path / "data" / "value.json",
+                  "w", encoding='utf-8') as json_file:
+            json.dump({}, json_file)
+        with open(dataset_path / "data" / "label.json",
+                  "w", encoding='utf-8') as json_file:
+            json.dump({}, json_file)
+
 
     @staticmethod
     def __make_tensor_uri(root: Path):
@@ -57,7 +64,7 @@ class SxStorageLocal(SxStorage):
         if len(files) > 0:
             last_id = int(str(files[-1].name).replace(".csv", ""))
             uuid = last_id + 1
-        return root / f"table_{str(uuid).zfill(9)}.csv"
+        return root / f"{str(uuid).zfill(9)}.csv"
 
     def create_tensor(self,
                       dataset: Dataset,
@@ -127,6 +134,8 @@ class SxStorageLocal(SxStorage):
         """
         filename = self.__make_table_uri(self.__root / dataset.uri.value / "data" / "table")
         table.to_csv(filename)
+        table_uri = URI(value=str(filename).replace(str(self.__root), ""))
+        return table_uri
 
     def write_table(self, uri: URI, table: pd.DataFrame):
         """Write table data into storage
@@ -156,12 +165,18 @@ class SxStorageLocal(SxStorage):
         with open(filename, "r", encoding='utf-8') as json_file:
             data = json.load(json_file)
 
-        new_id = max(data.keys()) + 1
+        if len(data.keys()) > 0:
+            keys = list(map(int, data.keys()))
+            new_id = max(keys) + 1
+        else:
+            new_id = 1
         data[new_id] = value
 
         with open(filename, "w", encoding='utf-8') as json_file:
             json.dump(data, json_file)
-        return URI(value=dataset.uri.value / "data" / f"value.json.{new_id}")
+
+        uri_value = f"{str(filename)}.{new_id}".replace(str(self.__root), "")
+        return URI(value=uri_value)
 
     def write_value(self, uri: URI, value: float):
         """Write a value into storage
@@ -169,7 +184,8 @@ class SxStorageLocal(SxStorage):
         :param uri: Unique identifier of the data,
         :param value: Value to write
         """
-        filename, uuid = uri.value.rrsplit('.', 1)
+        filename, uuid = uri.value.rsplit('.', 1)
+        filename = str(Path(str(self.__root) + filename).resolve())
         with open(filename, "r", encoding='utf-8') as json_file:
             data = json.load(json_file)
 
@@ -184,7 +200,8 @@ class SxStorageLocal(SxStorage):
         :param uri: Unique identifier of the data,
         :return: the read value
         """
-        filename, uuid = uri.value.rrsplit('.', 1)
+        filename, uuid = uri.value.rsplit('.', 1)
+        filename = str(Path(str(self.__root) + filename).resolve())
         with open(filename, "r", encoding='utf-8') as json_file:
             data = json.load(json_file)
             return data[str(uuid)]
@@ -199,12 +216,18 @@ class SxStorageLocal(SxStorage):
         with open(filename, "r", encoding='utf-8') as json_file:
             data = json.load(json_file)
 
-        new_id = max(data.keys()) + 1
+        if len(data.keys()) > 0:
+            keys = list(map(int, data.keys()))
+            new_id = max(keys) + 1
+        else:
+            new_id = 1
         data[new_id] = value
 
         with open(filename, "w", encoding='utf-8') as json_file:
             json.dump(data, json_file)
-        return URI(value=dataset.uri.value / "data" / f"label.json.{new_id}")
+
+        uri_value = f"{str(filename)}.{new_id}".replace(str(self.__root), "")
+        return URI(value=uri_value)
 
     def write_label(self, uri: URI, value: str):
         """Write a label into storage
@@ -212,7 +235,8 @@ class SxStorageLocal(SxStorage):
         :param uri: Unique identifier of the data,
         :param value: Value to write
         """
-        filename, uuid = uri.value.rrsplit('.', 1)
+        filename, uuid = uri.value.rsplit('.', 1)
+        filename = str(Path(str(self.__root) + filename).resolve())
         with open(filename, "r", encoding='utf-8') as json_file:
             data = json.load(json_file)
 
@@ -227,7 +251,8 @@ class SxStorageLocal(SxStorage):
         :param uri: Unique identifier of the data,
         :return: the read value
         """
-        filename, uuid = uri.value.rrsplit('.', 1)
+        filename, uuid = uri.value.rsplit('.', 1)
+        filename = str(Path(str(self.__root) + filename).resolve())
         with open(filename, "r", encoding='utf-8') as json_file:
             data = json.load(json_file)
             return data[str(uuid)]
