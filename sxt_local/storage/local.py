@@ -9,7 +9,6 @@ import zarr
 import shutil
 
 from scixtracer.models import URI
-from scixtracer.models import TensorRegion
 from scixtracer.models import Dataset
 from scixtracer.models import StorageTypes
 from scixtracer.storage import SxStorage
@@ -39,6 +38,38 @@ class SxStorageLocal(SxStorage):
         with open(dataset_path / "data" / "label.json",
                   "w", encoding='utf-8') as json_file:
             json.dump({}, json_file)
+
+    @staticmethod
+    def array_types() -> tuple | type:
+        """Array data types that the plugin can store
+
+        :return: The list of types
+        """
+        return np.ndarray
+
+    @staticmethod
+    def table_types() -> tuple | type:
+        """Table data types that the plugin can store
+
+        :return: The list of types
+        """
+        return pd.Series, pd.DataFrame
+
+    @staticmethod
+    def value_types() -> tuple | type:
+        """Value data types that the plugin can store
+
+        :return: The list of types
+        """
+        return float, int, bool
+
+    @staticmethod
+    def label_types() -> tuple | type:
+        """Label data types that the plugin can store
+
+        :return: The list of types
+        """
+        return str
 
     @staticmethod
     def __make_tensor_uri(root: Path):
@@ -96,37 +127,28 @@ class SxStorageLocal(SxStorage):
 
     def write_tensor(self,
                      uri: URI,
-                     array: np.ndarray,
-                     region: TensorRegion = None
+                     array: np.ndarray
                      ):
         """Write new tensor data
 
         :param uri: Unique identifier of the data,
-        :param array: Data content,
-        :param region: Region of the tensor to write
+        :param array: Data content
         """
         filename = str(Path(str(self.__root) + str(uri.value)).resolve())
         z_array = zarr.open(filename, mode='w')
-        if region is None:
-            z_array[:] = array
-        else:
-            z_array[region.indexes()] = array
+        z_array[:] = array
 
     def read_tensor(self,
-                    uri: URI,
-                    region: TensorRegion = None
+                    uri: URI
                     ) -> np.ndarray:
         """Read a tensor from the dataset storage
 
         :param uri: Unique identifier of the data,
-        :param region: Region of the tensor to write,
         :return: the read array
         """
         filename = str(Path(str(self.__root) + str(uri.value)).resolve())
         z_array = zarr.open(filename, mode='r')
-        if region is None:
-            return np.array(z_array[:])
-        return region.extract_region(z_array)
+        return np.array(z_array[:])
 
     def create_table(self, dataset: Dataset, table: pd.DataFrame):
         """Write table data into storage
