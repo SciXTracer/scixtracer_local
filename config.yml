@@ -7,3 +7,5 @@ storage:
 metadata:
   name: local
   workspace: C:\\workspace\\scixtracer_project\\workspace
+runner:
+  name: local

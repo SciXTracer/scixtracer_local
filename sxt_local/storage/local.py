@@ -102,7 +102,7 @@ class SxStorageLocal(SxStorage):
     def create_tensor(self,
                       dataset: Dataset,
                       array: np.ndarray = None,
-                      shape: tuple[str, ...] = None
+                      shape: tuple[int, ...] = None
                       ) -> URI:
         """Create a new tensor
 
@@ -158,7 +158,12 @@ class SxStorageLocal(SxStorage):
         """
         filename = self.__make_table_uri(
             self.__root / dataset.uri.value / "data" / "table")
-        table.to_csv(filename)
+
+        if table is None:
+            with open(str(filename), 'w') as fp:
+                pass
+        else:
+            table.to_csv(filename)
         table_uri = URI(value=str(filename).replace(str(self.__root), ""))
         return table_uri
 
