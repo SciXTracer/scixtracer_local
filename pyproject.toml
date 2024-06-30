@@ -7,7 +7,8 @@ name = "sxt_local"
 version = "0.0.1"
 dependencies = [
   "scixtracer >= 0.0.1",
-  "zarr >= 2.18.2"
+  "zarr >= 2.18.2",
+  "joblib >= 1.4.2"
 ]
 requires-python = ">= 3.11"
 maintainers = [

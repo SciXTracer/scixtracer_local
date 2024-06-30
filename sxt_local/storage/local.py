@@ -1,12 +1,12 @@
 """Implementation of the local storage plugin"""
 import json
 from pathlib import Path
+import shutil
 
 import numpy as np
 import pandas as pd
 import zarr
 
-import shutil
 
 from scixtracer.models import URI
 from scixtracer.models import Dataset
@@ -40,15 +40,15 @@ class SxStorageLocal(SxStorage):
             json.dump({}, json_file)
 
     @staticmethod
-    def array_types() -> tuple | type:
+    def array_types() -> tuple:
         """Array data types that the plugin can store
 
         :return: The list of types
         """
-        return np.ndarray
+        return (np.ndarray, )
 
     @staticmethod
-    def table_types() -> tuple | type:
+    def table_types() -> tuple:
         """Table data types that the plugin can store
 
         :return: The list of types
@@ -56,7 +56,7 @@ class SxStorageLocal(SxStorage):
         return pd.Series, pd.DataFrame
 
     @staticmethod
-    def value_types() -> tuple | type:
+    def value_types() -> tuple:
         """Value data types that the plugin can store
 
         :return: The list of types
@@ -64,12 +64,12 @@ class SxStorageLocal(SxStorage):
         return float, int, bool
 
     @staticmethod
-    def label_types() -> tuple | type:
+    def label_types() -> tuple:
         """Label data types that the plugin can store
 
         :return: The list of types
         """
-        return str
+        return (str, )
 
     @staticmethod
     def __make_tensor_uri(root: Path):
@@ -160,7 +160,7 @@ class SxStorageLocal(SxStorage):
             self.__root / dataset.uri.value / "data" / "table")
 
         if table is None:
-            with open(str(filename), 'w') as fp:
+            with open(str(filename), 'w', encoding='utf-8'):
                 pass
         else:
             table.to_csv(filename)
@@ -293,8 +293,7 @@ class SxStorageLocal(SxStorage):
         :param storage_type: Data storage type
         :param uri: Unique identifier of the data,
         """
-        if storage_type == StorageTypes.ARRAY \
-                or storage_type == StorageTypes.TABLE:
+        if storage_type in (StorageTypes.ARRAY, StorageTypes.TABLE):
             filename = str(Path(str(self.__root) + str(uri.value)).resolve())
             if Path(filename).is_dir():
                 shutil.rmtree(filename)

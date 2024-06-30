@@ -515,7 +515,7 @@ def query_delete(conn: Connection, uri: str):
     :param uri: The URI of the data to delete
     """
     cur = conn.cursor()
-    sql = """DELETE FROM data_annotation 
+    sql = """DELETE FROM data_annotation
              WHERE data_id = (SELECT id FROM data WHERE uri=?1)"""
     cur.execute(sql, [uri])
     sql = """DELETE FROM data WHERE uri=?1"""
