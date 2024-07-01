@@ -83,10 +83,10 @@ def insert_annotation_key(conn: Connection, key: str) -> int:
     :param key: Name of the annotation
     :return: the ID of the new or already existing annotation
     """
-    sql = """SELECT id FROM annotation_key WHERE name=?1"""
+    sql = """SELECT id FROM annotation_key WHERE name=?"""
     ann_id = __fetchone(conn, sql, [key])
     if ann_id is None:
-        sql = """INSERT INTO annotation_key (name) VALUES (?1)"""
+        sql = """INSERT INTO annotation_key (name) VALUES (?)"""
         cur = conn.cursor()
         cur.execute(sql, [key])
         conn.commit()
@@ -109,7 +109,7 @@ def insert_location_annotation(conn: Connection,
     """
     key_id = insert_annotation_key(conn, key)
     sql = """INSERT INTO location_annotation (location_id, key_id, value)
-             VALUES (?1, ?2, ?3)
+             VALUES (?, ?, ?)
           """
     conn.cursor().execute(sql, [location_id, key_id, value])
     conn.commit()
@@ -128,7 +128,7 @@ def insert_data_annotation(conn: Connection,
     """
     key_id = insert_annotation_key(conn, key)
     sql = """INSERT INTO data_annotation (data_id, key_id, value)
-             VALUES ((SELECT id FROM data WHERE uri=?1), ?2, ?3)
+             VALUES ((SELECT id FROM data WHERE uri=?), ?, ?)
           """
     conn.cursor().execute(sql, [data_uri, key_id, value])
     conn.commit()
@@ -141,7 +141,7 @@ def storage_type_id(conn: Connection, storage_type: str) -> int:
     :param storage_type: Storage format,
     :return: The storage type ID
     """
-    sql = "SELECT id FROM storage_type WHERE name=?1"
+    sql = "SELECT id FROM storage_type WHERE name=?"
     id_ = __fetchone(conn, sql, [storage_type])
     if id_ is not None:
         return id_[0]
@@ -165,7 +165,7 @@ def insert_data(conn: Connection,
     if storage_id is None:
         raise ValueError(f'Storage type {storage_type} not recognized')
     sql = """INSERT INTO data (location_id, type_id, uri, metadata_uri)
-             VALUES (?1, ?2, ?3, ?4)
+             VALUES (?, ?, ?, ?)
           """
     cur = conn.cursor()
     cur.execute(sql, [location_id, storage_id, uri, metadata_uri])
@@ -516,8 +516,8 @@ def query_delete(conn: Connection, uri: str):
     """
     cur = conn.cursor()
     sql = """DELETE FROM data_annotation
-             WHERE data_id = (SELECT id FROM data WHERE uri=?1)"""
+             WHERE data_id = (SELECT id FROM data WHERE uri=?)"""
     cur.execute(sql, [uri])
-    sql = """DELETE FROM data WHERE uri=?1"""
+    sql = """DELETE FROM data WHERE uri=?"""
     cur.execute(sql, [uri])
     conn.commit()
