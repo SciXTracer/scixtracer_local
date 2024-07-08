@@ -269,6 +269,33 @@ def __query_data_with_annotations_loc(conn: Connection,
             """
     return __fetchall(conn, sql)
 
+def query_data_from_uri(conn: Connection, data_uri: str) -> list:
+    """Read the data information from it URI
+
+    :param conn: Connection to database,
+    :param data_uri: URI of the data,
+    :return: The information of the data
+    """
+    sql = f"""SELECT data.location_id, storage_type.name, data.uri, data.metadata_uri
+              FROM data
+              INNER JOIN storage_type ON storage_type.id = data.type_id
+              WHERE data.uri = '{data_uri}'
+           """
+    return __fetchone(conn, sql)
+
+def query_data_at(conn: Connection, locations: list[int]):
+    """Implementation of the data at query
+
+    :param conn: Connection to the database,
+    :param locations: Locations to query,
+    """
+    locations_str = ",".join([f"'{value}'" for value in locations])
+    sql = f"""SELECT data.location_id, data.uri, storage_type.name, data.metadata_uri
+              FROM data
+              INNER JOIN storage_type ON storage_type.id = data.type_id
+              WHERE data.location_id in ({locations_str})
+           """
+    return __fetchall(conn, sql)
 
 def query_data_with_annotations(conn: Connection,
                                 annotations: dict[str, any]):
@@ -320,7 +347,7 @@ def query_annotations_conditions(annotations: dict[str, any]) -> str:
 
 
 def query_location(conn: Connection,
-                   annotations: dict[str, any]
+                   annotations: dict[str, any] = None
                    ) -> list[tuple[int]]:
     """Query locations that have given annotations
 
@@ -328,6 +355,10 @@ def query_location(conn: Connection,
     :param annotations: Annotations of locations,
     :return: list of location ids
     """
+    if annotations is None or len(annotations) == 0:
+        sql = """SELECT id FROM location"""
+        return __fetchall(conn, sql)
+
     conditions = query_annotations_conditions(annotations)
 
     sql = f"""WITH location_count AS (
@@ -420,6 +451,7 @@ def query_view_locations(conn: Connection) -> pd.DataFrame:
         series.append(pd.Series(values, idx))
     df_ = pd.concat(series, axis=1)
     df_.columns = col_names
+    df_['location_id'] = df_.index
     return df_
 
 

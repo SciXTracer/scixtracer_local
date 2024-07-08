@@ -19,11 +19,13 @@ from .queries import insert_data
 from .queries import query_location
 from .queries import query_data_annotation
 from .queries import query_locations_annotation
+from .queries import query_data_at
 from .queries import query_data_with_annotations
 from .queries import query_view_locations
 from .queries import query_view_data
 from .queries import query_data_tuples
 from .queries import query_delete
+from .queries import query_data_from_uri
 
 
 class SxIndexLocal(SxIndex):
@@ -52,8 +54,20 @@ class SxIndexLocal(SxIndex):
 
         :return: The info of available dataset in the workspace
         """
-        sub_dirs = [x.name for x in self.__workspace.iterdir() if x.is_dir()]
-        return pd.DataFrame(sub_dirs, columns=["uri"])
+        content = []
+        for x in self.__workspace.iterdir():
+            if x.is_dir():
+                dataset_info={"uri": x.name, "name": "", "description": ""}
+                desc_file = x / "info.json"
+                with open(desc_file, "r", encoding='utf-8') as file:
+                    data = json.load(file)
+                    if 'name' in data:
+                        dataset_info['name'] = data["name"]
+                    if 'description' in data:
+                        dataset_info['description'] = data["description"]
+                content.append(dataset_info)
+
+        return pd.DataFrame(content, columns=["uri", "name", "description"])
 
     def set_description(self, dataset: Dataset, metadata: dict[str, any]):
         """Write metadata to a dataset
@@ -62,8 +76,17 @@ class SxIndexLocal(SxIndex):
         :param metadata: Metadata to set
         """
         filename = Path(self.__workspace) / dataset.uri.value
-        filename = filename / "description.json"
-        with open(str(filename), "w", encoding='utf-8') as json_file:
+        desc_filename = filename / "description.json"
+        info_filename = filename / "info.json"
+
+        if "description" in metadata:
+            with open(str(info_filename), "r", encoding='utf-8') as json_file:
+                data = json.load(json_file)
+                data['description'] = metadata["description"]
+            with open(str(info_filename), "w", encoding='utf-8') as json_file:
+                json.dump(data, json_file)
+
+        with open(str(desc_filename), "w", encoding='utf-8') as json_file:
             json.dump(metadata, json_file)
 
     def get_description(self, dataset: Dataset) -> dict[str, any]:
@@ -202,6 +225,46 @@ class SxIndexLocal(SxIndex):
                         storage_type=storage_type,
                         metadata_uri=metadata_uri,
                         uri=uri)
+
+    def get_data_info(self, dataset: Dataset, data_uri: URI) -> DataInfo | None:
+        """Read the data information from it URI
+
+        :param dataset: Dataset to query,
+        :param data_uri: URI of the data,
+        :return: The information of the data
+        """
+        conn = self.__get_connection(dataset.uri)
+        data = query_data_from_uri(conn, data_uri.value)
+        if data is not None:
+            return DataInfo(location=Location(dataset=dataset, uuid=data[0]),
+                            storage_type=data[1],
+                            uri=URI(value=data[2]),
+                            metadata_uri=URI(value=data[3]))
+
+    def query_data_at(self,
+                      dataset: Dataset,
+                      locations: list[Location]) -> list[DataInfo]:
+        """Get all the data at given locations
+
+
+        :param dataset: Dataset to query,
+        :param locations: Locations to query,
+        :return: The list of data information at these locations
+        """
+        conn = self.__get_connection(dataset.uri)
+        loc_ids = []
+        for loc in locations:
+            loc_ids.append(loc.uuid)
+        data = query_data_at(conn, loc_ids)
+        out_data = []
+        for dat in data:
+            out_data.append(DataInfo(uri=URI(value=dat[1]),
+                                     storage_type=dat[2],
+                                     metadata_uri=URI(value=dat[3]),
+                                     location=Location(uuid=dat[0],
+                                                       dataset=dataset)))
+        return out_data
+
 
     def query_data_single(self,
                           dataset: Dataset,
