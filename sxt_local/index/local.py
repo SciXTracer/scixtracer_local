@@ -56,7 +56,7 @@ class SxIndexLocal(SxIndex):
         """
         content = []
         for x in self.__workspace.iterdir():
-            if x.is_dir():
+            if x.is_dir() and (x / "info.json").exists():
                 dataset_info={"uri": x.name, "name": "", "description": ""}
                 desc_file = x / "info.json"
                 with open(desc_file, "r", encoding='utf-8') as file:
@@ -389,7 +389,7 @@ class SxIndexLocal(SxIndex):
         conn = self.__get_connection(dataset.uri)
         loc_ids = []
         if locations is not None:
-            loc_ids = [loc.id for loc in locations]
+            loc_ids = [loc.uuid for loc in locations]
         results = query_view_data(conn, loc_ids)
         return results
 

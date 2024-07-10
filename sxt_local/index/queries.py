@@ -446,9 +446,11 @@ def query_view_locations(conn: Connection) -> pd.DataFrame:
                   WHERE key_id={key[0]}
                """
         values = __fetchall(conn, sql)
-        col_names.append(key[1])
-        idx, values = zip(*values)
-        series.append(pd.Series(values, idx))
+        print("values=", values)
+        if values is not None and len(values) > 0:
+            col_names.append(key[1])
+            idx, values = zip(*values)
+            series.append(pd.Series(values, idx))
     df_ = pd.concat(series, axis=1)
     df_.columns = col_names
     df_['location_id'] = df_.index
@@ -479,9 +481,10 @@ def __select_loc_annotations(conn, loc_filter) -> pd.DataFrame:
                   WHERE key_id={key[0]} {loc_filter}
                """
         values = __fetchall(conn, sql)
-        col_names.append(key[1])
-        idx, values = zip(*values)
-        series.append(pd.Series(values, idx))
+        if values is not None and len(values) > 0:
+            col_names.append(key[1])
+            idx, values = zip(*values)
+            series.append(pd.Series(values, idx))
     df_loc_ann = pd.concat(series, axis=1)
     df_loc_ann.columns = col_names
     return df_loc_ann.rename_axis('location').reset_index()
@@ -498,12 +501,14 @@ def __select_data_annotations(conn, loc_filter) -> pd.DataFrame:
     for key in ann_keys:
         sql = f"""SELECT data_id, value
                       FROM data_annotation
+                      INNER JOIN data on data.id = data_annotation.data_id
                       WHERE key_id={key[0]} {loc_filter}
                    """
         values = __fetchall(conn, sql)
-        col_names.append(key[1])
-        idx, values = zip(*values)
-        series.append(pd.Series(values, idx))
+        if values is not None and len(values) > 0:
+            col_names.append(key[1])
+            idx, values = zip(*values)
+            series.append(pd.Series(values, idx))
     df_data_ann = pd.concat(series, axis=1)
     df_data_ann.columns = col_names
     return df_data_ann.rename_axis('data_id').reset_index()
@@ -523,8 +528,8 @@ def query_view_data(conn: Connection,
     loc_filter2 = ""
     if len(locations) > 0:
         loc_ids = ",".join([str(elem) for elem in locations])
-        loc_filter = f"WHERE location_id IN {loc_ids}"
-        loc_filter2 = f"AND location_id IN {loc_ids}"
+        loc_filter = f"WHERE location_id IN ({loc_ids})"
+        loc_filter2 = f"AND location_id IN ({loc_ids})"
 
     # select data and types
     df_ = __select_data_and_type(conn, loc_filter)
